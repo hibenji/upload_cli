@@ -61,6 +61,21 @@ docker run -d -p 8086:8086 --name upload simple-upload-server
 
 Now the server is available at `http://localhost:8086`.
 
+### Prebuilt image from GitHub Container Registry
+After pushes to `main`, GitHub Actions publishes:
+
+```bash
+ghcr.io/hibenji/upload_cli:latest
+```
+
+Run it directly with:
+
+```bash
+docker run -d -p 8086:8086 --name upload ghcr.io/hibenji/upload_cli:latest
+```
+
+If the pull requires authentication, make the package public in the repository's GitHub Packages settings or log in with `docker login ghcr.io`.
+
 ---
 
 ## Using the browser
