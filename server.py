@@ -1,21 +1,62 @@
 from flask import Flask, jsonify, render_template, request, send_file
-import os, secrets, string, random, time
+import os, secrets, sqlite3, string, random, time
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 UPLOAD_FOLDER = "uploads"
+DATABASE_PATH = os.path.join(UPLOAD_FOLDER, "links.db")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-# id -> filepath mapping
-id_map = {}
-
 def friendly_id(length=5):
     alphabet = string.ascii_lowercase + string.digits
     return ''.join(random.choice(alphabet) for _ in range(length))
+
+def get_db():
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    with get_db() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS links (
+                id TEXT PRIMARY KEY,
+                filepath TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )
+            """
+        )
+
+def save_link(link_id, filepath):
+    with get_db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO links (id, filepath, created_at) VALUES (?, ?, ?)",
+            (link_id, filepath, time.time()),
+        )
+
+def get_link_path(link_id):
+    with get_db() as conn:
+        row = conn.execute("SELECT filepath FROM links WHERE id = ?", (link_id,)).fetchone()
+    if row:
+        return row["filepath"]
+    return None
+
+def delete_link(link_id):
+    with get_db() as conn:
+        conn.execute("DELETE FROM links WHERE id = ?", (link_id,))
+
+def delete_links_for_path(filepath):
+    with get_db() as conn:
+        conn.execute("DELETE FROM links WHERE filepath = ?", (filepath,))
+
+init_db()
 
 def cleanup_uploads(max_age=24*3600):
     now = time.time()
@@ -23,13 +64,16 @@ def cleanup_uploads(max_age=24*3600):
     for root, _, files in os.walk(UPLOAD_FOLDER):
         for f in files:
             path = os.path.join(root, f)
+            if path == DATABASE_PATH:
+                continue
             try:
                 if now - os.path.getmtime(path) > max_age:
                     os.remove(path)
+                    delete_links_for_path(path)
                     deleted += 1
             except FileNotFoundError:
                 pass
-        if not os.listdir(root):
+        if root != UPLOAD_FOLDER and not os.listdir(root):
             try:
                 os.rmdir(root)
             except OSError:
@@ -70,8 +114,8 @@ def save_upload(filename, stream):
     short_id = secrets.token_urlsafe(2)[:3]
     long_id  = friendly_id(5)
 
-    id_map[short_id + ":" + filename] = filepath
-    id_map[long_id] = filepath
+    save_link(short_id + ":" + filename, filepath)
+    save_link(long_id, filepath)
 
     base_url = get_base_url()
     url_with_name = f"{base_url}/{short_id}/{filename}"
@@ -161,15 +205,19 @@ def reject_nested_upload(filename):
 @app.route('/<short_id>/<path:filename>', methods=['GET'])
 def download_with_name(short_id, filename):
     key = short_id + ":" + filename
-    filepath = id_map.get(key)
+    filepath = get_link_path(key)
     if not filepath or not os.path.exists(filepath):
+        if filepath:
+            delete_link(key)
         return "Not found.\n", 404
     return send_file(filepath, as_attachment=True)
 
 @app.route('/<long_id>', methods=['GET'])
 def download_with_id(long_id):
-    filepath = id_map.get(long_id)
+    filepath = get_link_path(long_id)
     if not filepath or not os.path.exists(filepath):
+        if filepath:
+            delete_link(long_id)
         return "Not found.\n", 404
     return send_file(filepath, as_attachment=True)
 
