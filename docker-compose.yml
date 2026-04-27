@@ -1,0 +1,14 @@
+services:
+  upload:
+    image: ghcr.io/hibenji/upload_cli:latest
+    container_name: upload
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - "8086:8086"
+    volumes:
+      - uploads:/app/uploads
+
+volumes:
+  uploads:

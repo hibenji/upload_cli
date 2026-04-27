@@ -18,4 +18,4 @@ COPY templates ./templates
 EXPOSE 8086
 
 # Run the server
-CMD ["python", "server.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8086", "--workers", "2", "--threads", "4", "--timeout", "300", "server:app"]

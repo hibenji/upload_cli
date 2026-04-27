@@ -76,6 +76,14 @@ docker run -d -p 8086:8086 --name upload ghcr.io/hibenji/upload_cli:latest
 
 If the pull requires authentication, make the package public in the repository's GitHub Packages settings or log in with `docker login ghcr.io`.
 
+### Docker Compose
+
+```bash
+docker compose up -d
+```
+
+The compose file runs `ghcr.io/hibenji/upload_cli:latest`, exposes port `8086`, and stores uploaded files in a named Docker volume.
+
 ---
 
 ## Using the browser
