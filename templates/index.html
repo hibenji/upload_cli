@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Simple Upload Server</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #f7f7f4;
+            --panel: #ffffff;
+            --text: #202124;
+            --muted: #62656a;
+            --line: #d8d7d2;
+            --accent: #0f766e;
+            --accent-strong: #115e59;
+            --code-bg: #1f2937;
+            --code-text: #f8fafc;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            line-height: 1.5;
+        }
+
+        main {
+            width: min(960px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 48px 0;
+        }
+
+        header {
+            margin-bottom: 32px;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: clamp(2rem, 6vw, 4.5rem);
+            line-height: 1;
+            letter-spacing: 0;
+        }
+
+        h2 {
+            margin: 0 0 14px;
+            font-size: 1.25rem;
+        }
+
+        p {
+            margin: 0;
+            color: var(--muted);
+        }
+
+        section {
+            border-top: 1px solid var(--line);
+            padding: 28px 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 24px;
+        }
+
+        .upload-area {
+            display: grid;
+            gap: 24px;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 18px;
+            padding: 6px 10px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: var(--accent);
+        }
+
+        form {
+            display: grid;
+            gap: 14px;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 14px;
+            border: 1px dashed var(--line);
+            border-radius: 8px;
+            background: transparent;
+        }
+
+        button {
+            justify-self: start;
+            min-height: 42px;
+            border: 0;
+            border-radius: 8px;
+            padding: 0 16px;
+            background: var(--accent);
+            color: #ffffff;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: var(--accent-strong);
+        }
+
+        code,
+        pre {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+
+        pre {
+            margin: 0;
+            overflow-x: auto;
+            border-radius: 8px;
+            padding: 16px;
+            background: var(--code-bg);
+            color: var(--code-text);
+            font-size: 0.92rem;
+        }
+
+        .stack {
+            display: grid;
+            gap: 12px;
+        }
+
+        .links {
+            display: grid;
+            gap: 8px;
+            overflow-wrap: anywhere;
+        }
+
+        .result-panel {
+            display: none;
+        }
+
+        .result-panel.is-visible {
+            display: grid;
+        }
+
+        .progress-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .progress-meta {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 12px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: var(--line);
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            border-radius: inherit;
+            background: var(--accent);
+            transition: width 150ms ease;
+        }
+
+        .result-content {
+            display: none;
+        }
+
+        .result-content.is-visible {
+            display: grid;
+        }
+
+        .error {
+            color: #b42318;
+            font-weight: 700;
+        }
+
+        a {
+            color: var(--accent-strong);
+        }
+
+        @media (max-width: 760px) {
+            main {
+                padding: 32px 0;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #141412;
+                --panel: #1d1d1a;
+                --text: #f3f2ed;
+                --muted: #bbb8ad;
+                --line: #3a3934;
+                --accent: #14b8a6;
+                --accent-strong: #5eead4;
+                --code-bg: #0f172a;
+                --code-text: #e2e8f0;
+            }
+
+            button {
+                color: #09201d;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <h1>Simple Upload Server</h1>
+            <p>Temporary file uploads with browser and command-line access. Files expire after 24 hours.</p>
+            <div class="status">
+                <span class="dot" aria-hidden="true"></span>
+                <strong>{{ protocol|upper }}</strong> endpoint: <code>{{ base_url }}</code>
+            </div>
+        </header>
+
+        <section class="upload-area">
+            <div class="grid">
+                <div class="panel stack">
+                    <h2>Upload File</h2>
+                    <form id="upload-form" action="{{ url_for('upload_from_browser') }}" method="post" enctype="multipart/form-data">
+                        <input id="file-input" type="file" name="file" required>
+                        <button id="upload-button" type="submit">Upload</button>
+                    </form>
+                </div>
+
+                <div class="panel stack">
+                    <h2>CLI Upload</h2>
+                    <p>Upload directly with <code>curl -T</code>.</p>
+                    <pre>curl {{ base_url }}/ -T notes.txt</pre>
+                </div>
+            </div>
+
+            <div id="upload-result" class="panel stack result-panel{% if result or error %} is-visible{% endif %}" aria-live="polite">
+                <div class="progress-header">
+                    <h2 id="result-title">{% if result %}Uploaded{% else %}Upload Progress{% endif %}</h2>
+                    <div class="progress-meta">
+                        <span id="progress-label">{% if result %}100%{% else %}0%{% endif %}</span>
+                        <span id="speed-label"></span>
+                    </div>
+                </div>
+                <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{% if result %}100{% else %}0{% endif %}">
+                    <div id="progress-fill" class="progress-fill" style="width: {% if result %}100{% else %}0{% endif %}%"></div>
+                </div>
+                <p id="upload-error" class="error">{% if error %}{{ error }}{% endif %}</p>
+                <div id="result-content" class="result-content stack{% if result %} is-visible{% endif %}">
+                    <p><span id="result-filename">{% if result %}{{ result.filename }}{% endif %}</span> is ready.</p>
+                    <div class="links">
+                        <a id="result-url-name" href="{% if result %}{{ result.url_with_name }}{% endif %}">{% if result %}{{ result.url_with_name }}{% endif %}</a>
+                        <a id="result-url-id" href="{% if result %}{{ result.url_with_id }}{% endif %}">{% if result %}{{ result.url_with_id }}{% endif %}</a>
+                    </div>
+                    <pre id="result-commands">{% if result %}{{ result.wget_with_name }}
+{{ result.wget_with_id }}{% endif %}</pre>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="stack">
+                <h2>Examples</h2>
+                <pre>curl {{ base_url }}/ -T report.pdf
+wget {{ base_url }}/abc/report.pdf
+wget {{ base_url }}/k9d3x</pre>
+            </div>
+            <div class="stack">
+                <h2>Generated Links</h2>
+                <p>Download URLs use the request scheme, including <code>X-Forwarded-Proto</code> behind nginx, so links match HTTP or HTTPS automatically.</p>
+            </div>
+        </section>
+    </main>
+    <script>
+        const form = document.getElementById("upload-form");
+        const fileInput = document.getElementById("file-input");
+        const button = document.getElementById("upload-button");
+        const resultPanel = document.getElementById("upload-result");
+        const progressTrack = document.querySelector(".progress-track");
+        const progressFill = document.getElementById("progress-fill");
+        const progressLabel = document.getElementById("progress-label");
+        const speedLabel = document.getElementById("speed-label");
+        const resultTitle = document.getElementById("result-title");
+        const errorEl = document.getElementById("upload-error");
+        const resultContent = document.getElementById("result-content");
+        const resultFilename = document.getElementById("result-filename");
+        const resultUrlName = document.getElementById("result-url-name");
+        const resultUrlId = document.getElementById("result-url-id");
+        const resultCommands = document.getElementById("result-commands");
+
+        function setProgress(percent) {
+            const value = Math.max(0, Math.min(100, Math.round(percent)));
+            progressFill.style.width = `${value}%`;
+            progressLabel.textContent = `${value}%`;
+            progressTrack.setAttribute("aria-valuenow", value);
+        }
+
+        function formatBytesPerSecond(bytesPerSecond) {
+            if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) {
+                return "";
+            }
+
+            const units = ["B/s", "KB/s", "MB/s", "GB/s"];
+            let value = bytesPerSecond;
+            let unitIndex = 0;
+
+            while (value >= 1024 && unitIndex < units.length - 1) {
+                value /= 1024;
+                unitIndex += 1;
+            }
+
+            const precision = value >= 10 || unitIndex === 0 ? 0 : 1;
+            return `${value.toFixed(precision)} ${units[unitIndex]}`;
+        }
+
+        function showError(message) {
+            resultTitle.textContent = "Upload Failed";
+            errorEl.textContent = message;
+            speedLabel.textContent = "";
+            resultContent.classList.remove("is-visible");
+            button.disabled = false;
+        }
+
+        function showResult(data) {
+            resultTitle.textContent = "Uploaded";
+            errorEl.textContent = "";
+            speedLabel.textContent = "";
+            resultFilename.textContent = data.filename;
+            resultUrlName.href = data.url_with_name;
+            resultUrlName.textContent = data.url_with_name;
+            resultUrlId.href = data.url_with_id;
+            resultUrlId.textContent = data.url_with_id;
+            resultCommands.textContent = `${data.wget_with_name}\n${data.wget_with_id}`;
+            resultContent.classList.add("is-visible");
+            button.disabled = false;
+        }
+
+        form.addEventListener("submit", (event) => {
+            if (!window.XMLHttpRequest) {
+                return;
+            }
+
+            event.preventDefault();
+
+            if (!fileInput.files.length) {
+                resultPanel.classList.add("is-visible");
+                setProgress(0);
+                showError("Choose a file before uploading.");
+                return;
+            }
+
+            const request = new XMLHttpRequest();
+            const data = new FormData(form);
+            const startedAt = performance.now();
+
+            resultPanel.classList.add("is-visible");
+            resultTitle.textContent = "Uploading";
+            errorEl.textContent = "";
+            speedLabel.textContent = "";
+            resultContent.classList.remove("is-visible");
+            setProgress(0);
+            button.disabled = true;
+
+            request.upload.addEventListener("progress", (event) => {
+                if (event.lengthComputable) {
+                    setProgress((event.loaded / event.total) * 100);
+                }
+
+                const elapsedSeconds = (performance.now() - startedAt) / 1000;
+                if (elapsedSeconds > 0) {
+                    speedLabel.textContent = formatBytesPerSecond(event.loaded / elapsedSeconds);
+                }
+            });
+
+            request.addEventListener("load", () => {
+                let response = {};
+                try {
+                    response = JSON.parse(request.responseText);
+                } catch (error) {
+                    showError("Upload completed, but the server returned an invalid response.");
+                    return;
+                }
+
+                if (request.status >= 200 && request.status < 300) {
+                    setProgress(100);
+                    showResult(response);
+                    form.reset();
+                    return;
+                }
+
+                showError(response.error || "Upload failed.");
+            });
+
+            request.addEventListener("error", () => {
+                showError("Upload failed. Check the connection and try again.");
+            });
+
+            request.open("POST", form.action);
+            request.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+            request.setRequestHeader("Accept", "application/json");
+            request.send(data);
+        });
+    </script>
+</body>
+</html>

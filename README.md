@@ -6,10 +6,13 @@ Files are automatically removed after **24 hours**.
 ---
 
 ## Features
+- Index page with example usage, browser uploads, and upload progress
 - Upload with `curl <url> -T file`
 - Two download link styles:
   - Short ID + filename: `http://domain/abc/file.txt`
   - Long friendly ID only: `http://domain/xyz12`
+- Detects HTTP vs HTTPS from the active request, including reverse proxy headers
+- Stores uploads as single files; nested upload paths are not supported
 - Files are stored once and cleaned up by a background scheduler after 24 hours
 - Reverse proxy friendly (nginx config included)
 
@@ -34,7 +37,13 @@ pip install -r requirements.txt
 python server.py
 ```
 
-By default, it listens on port **8085**.
+By default, it listens on port **8086**. You can override it with `PORT`.
+
+Open the index page at:
+
+```bash
+http://localhost:8086
+```
 
 ---
 
@@ -47,10 +56,22 @@ docker build -t simple-upload-server .
 
 ### 2. Run the container
 ```bash
-docker run -d -p 8085:8085 --name upload simple-upload-server
+docker run -d -p 8086:8086 --name upload simple-upload-server
 ```
 
-Now the server is available at `http://localhost:8085`.
+Now the server is available at `http://localhost:8086`.
+
+---
+
+## Using the browser
+
+Visit the index page, choose a file, and submit the upload form:
+
+```bash
+http://localhost:8086
+```
+
+After upload, the page shows both generated download URLs and matching `wget` commands.
 
 ---
 
@@ -85,6 +106,8 @@ wget http://your-domain.com/k9d3x
 ## Nginx reverse proxy
 
 There is also an example nginx config to run the server behind a reverse proxy, just change your domain and paths as needed.
+
+The app trusts `X-Forwarded-Proto`, so generated links use HTTPS when nginx receives HTTPS traffic and forwards that header.
 
 ### Enable config
 1. Save as `/etc/nginx/sites-available/upload.conf`

@@ -10,11 +10,12 @@ COPY requirements.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy your server code
+# Copy your server code and templates
 COPY server.py .
+COPY templates ./templates
 
 # Expose the port Flask runs on
-EXPOSE 8085
+EXPOSE 8086
 
 # Run the server
 CMD ["python", "server.py"]
